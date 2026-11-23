@@ -22,7 +22,7 @@
         <form id="adminLoginForm" class="space-y-4">
             <div>
                 <label class="block text-xs text-slate-400 mb-1">Admin Email</label>
-                <input type="email" id="adminEmail" required placeholder="example@gmail.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                <input type="email" id="adminEmail" required placeholder="aunghtet668866@gmail.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
             </div>
             <div>
                 <label class="block text-xs text-slate-400 mb-1">Password</label>
@@ -1085,15 +1085,67 @@
         }
 
         async function updateRequestStatus(reqId, newStatus) {
-            if (!confirm(`ဤ Request ကို "${newStatus.toUpperCase()}" အဖြစ် ပြောင်းလဲမည်လား?`)) return;
+            const reqItem = allRequestsCache.find((r) => r.id === reqId);
+            const isWithdrawApprove = newStatus === "approved" && reqItem && reqItem.type === "withdraw";
+            const confirmMsg = isWithdrawApprove
+                ? `ဤ Withdraw Request (${formatUsdtOneDecimal(reqItem.amount || 0)}) ကို Approve လုပ်ပြီး User Balance ထဲမှ အလိုအလျောက် နှုတ်ယူမည်လား?`
+                : `ဤ Request ကို "${newStatus.toUpperCase()}" အဖြစ် ပြောင်းလဲမည်လား?`;
+
+            if (!confirm(confirmMsg)) return;
+
             try {
-                await db.collection("approval_requests").doc(reqId).update({
-                    status: newStatus,
-                    reviewedBy: auth.currentUser?.email || "admin",
-                    reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                const reqRef = db.collection("approval_requests").doc(reqId);
+
+                await db.runTransaction(async (t) => {
+                    const reqSnap = await t.get(reqRef);
+                    if (!reqSnap.exists) throw new Error("Request not found");
+                    const reqData = reqSnap.data() || {};
+
+                    if (
+                        newStatus === "approved"
+                        && reqData.type === "withdraw"
+                        && reqData.status === "pending"
+                    ) {
+                        const walletAddr = String(reqData.walletAddress || "").toLowerCase();
+                        const withdrawAmt = Math.max(0, Number(reqData.amount || 0));
+
+                        if (walletAddr && withdrawAmt > 0) {
+                            const userRef = db.collection("users").doc(walletAddr);
+                            const userSnap = await t.get(userRef);
+                            const userData = userSnap.exists ? (userSnap.data() || {}) : {};
+
+                            let curRefBal = Math.max(0, Number(userData.referralBalance || 0));
+                            let curIntBal = Math.max(0, Number(userData.interestBalance || 0));
+                            let remainingToDeduct = withdrawAmt;
+
+                            const deductFromRef = Math.min(curRefBal, remainingToDeduct);
+                            curRefBal = Number(Math.max(0, curRefBal - deductFromRef).toFixed(6));
+                            remainingToDeduct = Number(Math.max(0, remainingToDeduct - deductFromRef).toFixed(6));
+
+                            const deductFromInt = Math.min(curIntBal, remainingToDeduct);
+                            curIntBal = Number(Math.max(0, curIntBal - deductFromInt).toFixed(6));
+
+                            t.set(userRef, {
+                                referralBalance: curRefBal,
+                                interestBalance: curIntBal,
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            }, { merge: true });
+                        }
+                    }
+
+                    t.update(reqRef, {
+                        status: newStatus,
+                        reviewedBy: auth.currentUser?.email || "admin",
+                        reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
                 });
-                setAdminLog(`Request (${reqId}) ကို ${newStatus} လုပ်ပြီးပါပြီ။`);
+
+                setAdminLog(
+                    isWithdrawApprove
+                        ? `Request (${reqId}) ကို Approve လုပ်ပြီး User Balance (${formatUsdtOneDecimal(reqItem.amount || 0)}) နှုတ်ယူပြီးပါပြီ။`
+                        : `Request (${reqId}) ကို ${newStatus} လုပ်ပြီးပါပြီ။`
+                );
                 await loadInitialFirestoreData();
             } catch (err) {
                 alert("Update မအောင်မြင်ပါ: " + (err.message || ""));
